@@ -1032,6 +1032,54 @@ string YulUtilFunctions::suffixedVariableNameList(string const& _baseName, size_
 	return result;
 }
 
+string YulUtilFunctions::incrementFunction(Type const& _type)
+{
+	solUnimplementedAssert(
+		_type.category() == Type::Category::Integer,
+		"Only integer increment/decrement implemented."
+		);
+
+	IntegerType const& type = dynamic_cast<IntegerType const&>(_type);
+
+	solUnimplementedAssert(!type.isSigned(), "Signed not yet implemented!");
+
+	string const functionName = "increment_" + _type.identifier();
+	string const addFunction = overflowCheckedUIntAddFunction(type.numBits());
+
+	return incrOrDecrFunction(functionName, addFunction);
+}
+
+string YulUtilFunctions::decrementFunction(Type const& _type)
+{
+	solUnimplementedAssert(
+		_type.category() == Type::Category::Integer,
+		"Only integer increment/decrement implemented."
+		);
+
+	IntegerType const& type = dynamic_cast<IntegerType const&>(_type);
+
+	solUnimplementedAssert(!type.isSigned(), "Signed not yet implemented!");
+
+	string const functionName = "decrement_" + _type.identifier();
+	string const subFunction = overflowCheckedUIntSubFunction();
+
+	return incrOrDecrFunction(functionName, subFunction);
+}
+
+std::string YulUtilFunctions::incrOrDecrFunction(string const& _funcName, string const& _addSubFunc)
+{
+	return m_functionCollector->createFunction(_funcName, [&]() {
+		return Whiskers(R"(
+			function <functionName>(_value) -> incremented {
+				incremented := <addOrSub>(_value, 1)
+			}
+		)")
+			("functionName", _funcName)
+			("addOrSub", _addSubFunc)
+			.render();
+		});
+}
+
 string YulUtilFunctions::conversionFunctionSpecial(Type const& _from, Type const& _to)
 {
 	string functionName =
