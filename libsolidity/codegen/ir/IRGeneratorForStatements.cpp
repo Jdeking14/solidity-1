@@ -131,7 +131,7 @@ bool IRGeneratorForStatements::visit(Assignment const& _assignment)
 
 	_assignment.leftHandSide().accept(*this);
 	solAssert(!!m_currentLValue, "LValue not retrieved.");
-	m_currentLValue->storeValue(intermediateValue, *intermediateType);
+	m_code << m_currentLValue->storeValue(intermediateValue, *intermediateType);
 	m_currentLValue.reset();
 
 	defineExpression(_assignment) << intermediateValue << "\n";
@@ -273,7 +273,7 @@ void IRGeneratorForStatements::endVisit(UnaryOperation const& _unaryOperation)
 					" := " << fetchValueExpr << "\n";
 			}
 
-			m_currentLValue->storeValue(modifiedValue, resultType);
+			m_code << m_currentLValue->storeValue(modifiedValue, resultType);
 			m_currentLValue.reset();
 
 			defineExpression(_unaryOperation) << returnValue << "\n";
@@ -735,7 +735,6 @@ void IRGeneratorForStatements::endVisit(IndexAccess const& _indexAccess)
 			templ("key", ", " + m_context.variable(*_indexAccess.indexExpression()));
 		m_code << templ.render();
 		setLValue(_indexAccess, make_unique<IRStorageItem>(
-			m_code,
 			m_context,
 			slot,
 			0,
@@ -791,9 +790,9 @@ void IRGeneratorForStatements::endVisit(Identifier const& _identifier)
 		solUnimplementedAssert(!varDecl->isConstant(), "");
 		unique_ptr<IRLValue> lvalue;
 		if (m_context.isLocalVariable(*varDecl))
-			lvalue = make_unique<IRLocalVariable>(m_code, m_context, *varDecl);
+			lvalue = make_unique<IRLocalVariable>(m_context, *varDecl);
 		else if (m_context.isStateVariable(*varDecl))
-			lvalue = make_unique<IRStorageItem>(m_code, m_context, *varDecl);
+			lvalue = make_unique<IRStorageItem>(m_context, *varDecl);
 		else
 			solAssert(false, "Invalid variable kind.");
 
