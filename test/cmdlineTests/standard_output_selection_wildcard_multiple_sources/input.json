@@ -15,7 +15,7 @@
 	{
 		"outputSelection":
 		{
-			"*": { "D": ["evm.bytecode"] }
+			"*": { "D": ["ir"] }
 		}
 	}
 }
