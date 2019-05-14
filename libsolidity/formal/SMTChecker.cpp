@@ -333,17 +333,19 @@ void SMTChecker::endVisit(VariableDeclarationStatement const& _varDecl)
 		if (auto init = _varDecl.initialValue())
 		{
 			auto symbTuple = dynamic_pointer_cast<smt::SymbolicTupleVariable>(m_expressions[init]);
-			/// symbTuple == nullptr if it is the return of a non-inlined function call.
-			if (symbTuple)
+			solAssert(symbTuple, "");
+			auto const& components = symbTuple->components();
+			auto const& declarations = _varDecl.declarations();
+			if (!components.empty())
 			{
-				auto const& components = symbTuple->components();
-				auto const& declarations = _varDecl.declarations();
+				solAssert(components.size() == declarations.size(), "");
 				for (unsigned i = 0; i < declarations.size(); ++i)
-				{
-					solAssert(components.at(i), "");
-					if (declarations.at(i) && m_context.knownVariable(*declarations.at(i)))
+					if (
+						components.at(i) &&
+						declarations.at(i) &&
+						m_context.knownVariable(*declarations.at(i))
+					)
 						assignment(*declarations.at(i), components.at(i)->currentValue(), declarations.at(i)->location());
-				}
 			}
 		}
 	}
@@ -635,6 +637,7 @@ void SMTChecker::endVisit(BinaryOperation const& _op)
 void SMTChecker::endVisit(FunctionCall const& _funCall)
 {
 	solAssert(_funCall.annotation().kind != FunctionCallKind::Unset, "");
+	createExpr(_funCall);
 	if (_funCall.annotation().kind == FunctionCallKind::StructConstructorCall)
 	{
 		m_errorReporter.warning(
@@ -696,7 +699,6 @@ void SMTChecker::endVisit(FunctionCall const& _funCall)
 		checkCondition(thisBalance < expr(*value), _funCall.location(), "Insufficient funds", "address(this).balance", &thisBalance);
 
 		m_context.transfer(m_context.thisAddress(), expr(address), expr(*value));
-		createExpr(_funCall);
 		break;
 	}
 	default:
@@ -743,14 +745,8 @@ void SMTChecker::visitGasLeft(FunctionCall const& _funCall)
 void SMTChecker::inlineFunctionCall(FunctionCall const& _funCall)
 {
 	FunctionDefinition const* funDef = inlinedFunctionCallToDefinition(_funCall);
-	if (!funDef)
-	{
-		m_errorReporter.warning(
-			_funCall.location(),
-			"Assertion checker does not yet implement this type of function call."
-		);
-	}
-	else if (visitedFunction(funDef))
+	solAssert(funDef, "");
+	if (visitedFunction(funDef))
 		m_errorReporter.warning(
 			_funCall.location(),
 			"Assertion checker does not support recursive function calls.",
@@ -781,7 +777,6 @@ void SMTChecker::inlineFunctionCall(FunctionCall const& _funCall)
 		// The callstack entry is popped only in endVisit(FunctionDefinition) instead of here
 		// as well to avoid code duplication (not all entries are from inlined function calls).
 
-		createExpr(_funCall);
 		auto const& returnParams = funDef->returnParameters();
 		if (returnParams.size() > 1)
 		{
@@ -868,7 +863,6 @@ void SMTChecker::visitTypeConversion(FunctionCall const& _funCall)
 		defineExpr(_funCall, expr(*argument));
 	else
 	{
-		createExpr(_funCall);
 		m_context.setUnknownValue(*m_expressions.at(&_funCall));
 		auto const& funCallCategory = _funCall.annotation().type->category();
 		// TODO: truncating and bytesX needs a different approach because of right padding.
@@ -1367,10 +1361,13 @@ void SMTChecker::assignment(
 	else if (auto tuple = dynamic_cast<TupleExpression const*>(&_left))
 	{
 		auto const& components = tuple->components();
-		solAssert(_right.size() == components.size(), "");
-		for (unsigned i = 0; i < _right.size(); ++i)
-			if (auto component = components.at(i))
-				assignment(*component, {_right.at(i)}, component->annotation().type, component->location());
+		if (!_right.empty())
+		{
+			solAssert(_right.size() == components.size(), "");
+			for (unsigned i = 0; i < _right.size(); ++i)
+				if (auto component = components.at(i))
+					assignment(*component, {_right.at(i)}, component->annotation().type, component->location());
+		}
 	}
 	else
 		m_errorReporter.warning(
