@@ -546,7 +546,7 @@
 //         let i := 0
 //         for { } lt(i, 0x3) { i := add(i, 1) }
 //         {
-//             mstore(pos, and(mload(srcPtr), 0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF))
+//             mstore(pos, and(mload(srcPtr), sub(shl(160, 1), 1)))
 //             srcPtr := add(srcPtr, 0x20)
 //             pos := add(pos, 0x20)
 //         }
